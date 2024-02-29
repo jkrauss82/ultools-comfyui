@@ -119,17 +119,11 @@ class SaveImgAdv:
                     for x in extra_pnginfo:
                         workflowmetadata += "".join(json.dumps(extra_pnginfo[x]))
 
-                exifdict = {
-                        "0th": {
-                            piexif.ImageIFD.Make: promptstr,
-                            piexif.ImageIFD.ImageDescription: workflowmetadata
-                        }
-                    }
+                # jpg has a maximum length of 64k in exif, need to check if meta data fits
+                a1111 = ""
                 if add_automatic1111_meta:
-                    exifdict['Exif'] = {
-                            piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(helper.automatic1111Format(prompt, img, calc_model_hashes) or "", encoding="unicode")
-                        }
-
+                    a1111 = helper.automatic1111Format(prompt, img, calc_model_hashes) or ""
+                xpkeywords = ""
                 kidx = idx if keywords != None and len(keywords) > 1 else 0
                 if keywords[kidx] != None and isinstance(keywords[kidx], str) and keywords[kidx] != '':
                     # keywords maxlength in iptc standard 64 characters
@@ -137,7 +131,39 @@ class SaveImgAdv:
                     final_list = []
                     for word in klist:
                         if len(word) < 65: final_list.append(word.strip())
-                    exifdict["0th"][piexif.ImageIFD.XPKeywords] = ", ".join(final_list).encode("utf-16le")
+                    xpkeywords = ", ".join(final_list)
+
+                if format == 'jpg':
+                    lenexif = len(promptstr) + len(workflowmetadata) + len(xpkeywords) + len(a1111)
+                    while lenexif >= 64000:
+                        # throw away promptstr or workflowmetadata in case we exceed 64k
+                        if promptstr != "":
+                            promptstr = ""
+                            print(f'WARNING (SaveImgAdv): cannot save prompt to image because maximum jpg exif size of 64k characters exceeded.')
+                        elif workflowmetadata != "":
+                            workflowmetadata = ""
+                            print(f'WARNING (SaveImgAdv): cannot save workflow to image because maximum jpg exif size of 64k characters exceeded.')
+                        elif xpkeywords != "":
+                            xpkeywords = ""
+                            print(f'WARNING (SaveImgAdv): cannot save xpkeywords to image because maximum jpg exif size of 64k characters exceeded.')
+                        elif a1111 != "":
+                            a1111 = ""
+                            print(f'WARNING (SaveImgAdv): cannot save a1111 to image because maximum jpg exif size of 64k characters exceeded.')
+                        lenexif = len(promptstr) + len(workflowmetadata) + len(xpkeywords) + len(a1111)
+
+                # store data to exifdict
+                exifdict = {
+                        "0th": {
+                            piexif.ImageIFD.Make: promptstr,
+                            piexif.ImageIFD.ImageDescription: workflowmetadata
+                        }
+                    }
+                if a1111 != "":
+                    exifdict['Exif'] = {
+                            piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(a1111, encoding="unicode")
+                        }
+                if xpkeywords != "":
+                    exifdict["0th"][piexif.ImageIFD.XPKeywords] = xpkeywords.encode("utf-16le")
 
                 exif_bytes = piexif.dump(exifdict)
 
