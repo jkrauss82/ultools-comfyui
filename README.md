@@ -69,6 +69,28 @@ Collection of tools supporting txt2img generation in [ComfyUI](https://github.co
 
 </details>
 
+<details>
+
+<summary>OpenPoseEditorAdv</summary>
+
+  <br>
+
+  *Forked from space-nuko / https://github.com/space-nuko/ComfyUI-OpenPose-Editor with bugs fixed and heavily adapted*
+
+  A port of the [openpose-editor](https://github.com/fkunn1326/openpose-editor) extension for stable-diffusion-webui
+
+  The editor automatically generates a mask for each pose. Useful for specific conditioning per pose.
+
+  **Usage**
+
+  Import the `image > OpenPoseEditorAdv` node, add a new pose and use it like you would a `LoadImage` node. Each change you make to poses will be saved to the input folder of ComfyUI.
+
+  **Example Workflow**
+
+  ![Screenshot](./examples/openposeadv.png)
+
+</details>
+
 ## 🖥️ Installation
 
 In your terminal/console, navigate to your ComfyUI custom nodes directory and clone this repo:

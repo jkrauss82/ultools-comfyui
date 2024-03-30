@@ -1,4 +1,4 @@
-from .nodes import CLIPTextEncodeWithStats, SaveImgAdv
+from .nodes import CLIPTextEncodeWithStats, SaveImgAdv, OpenPoseEditorAdv
 import shutil
 import folder_paths
 import os
@@ -20,7 +20,7 @@ def setup_js():
     ultools_path = os.path.dirname(__file__)
     js_dest_path = os.path.join(comfy_path, "web", "extensions", "ultools")
     legacy_js_dest_path = os.path.join(comfy_path, "web", "extensions", "imginfo")
-    js_files = ["ultools.js", "exif-reader.js"]
+    js_files = ["ultools.js", "exif-reader.js", "openposeadv.js", "fabric.min.js"]
 
     # check presence of legacy folder, print hint it can be removed
     if os.path.isdir(legacy_js_dest_path):
@@ -43,5 +43,6 @@ setup_js()
 
 NODE_CLASS_MAPPINGS = {
     "SaveImgAdv": SaveImgAdv.SaveImgAdv,
-    "CLIPTextEncodeWithStats": CLIPTextEncodeWithStats.CLIPTextEncodeWithStats
+    "CLIPTextEncodeWithStats": CLIPTextEncodeWithStats.CLIPTextEncodeWithStats,
+    "OpenPoseEditorAdv": OpenPoseEditorAdv.OpenPoseEditorAdv
 }
