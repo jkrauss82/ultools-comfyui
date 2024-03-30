@@ -1,4 +1,4 @@
-from .nodes import CLIPTextEncodeWithStats, SaveImgAdv
+from .nodes import CLIPTextEncodeWithStats, SaveImgAdv, BLIPAnalyzer
 import shutil
 import folder_paths
 import os
@@ -43,5 +43,6 @@ setup_js()
 
 NODE_CLASS_MAPPINGS = {
     "SaveImgAdv": SaveImgAdv.SaveImgAdv,
-    "CLIPTextEncodeWithStats": CLIPTextEncodeWithStats.CLIPTextEncodeWithStats
+    "CLIPTextEncodeWithStats": CLIPTextEncodeWithStats.CLIPTextEncodeWithStats,
+    "BLIPAnalyzer": BLIPAnalyzer.BLIPAnalyzer
 }
