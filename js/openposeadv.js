@@ -529,16 +529,7 @@ export class OpenPosePanel {
             this.undo_history.push(JSON.stringify(canvas));
             this.redo_history.length = 0;
             this.saveToNode()
-        });
-
-        // const json_observer = new MutationObserver((m) => {
-        //     if(gradioApp().querySelector('#tab_openpose_editor').style.display!=='block') return;
-        //     try {
-        //         const raw = gradioApp().querySelector("#jsonbox").querySelector("textarea").value
-        //         if(raw.length!==0) detectImage(raw);
-        //     } catch(e){console.log(e)}
-        // })
-        // json_observer.observe(gradioApp().querySelector("#jsonbox"), { "attributes": true })
+        })
 
         return canvas;
     }

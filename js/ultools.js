@@ -1,7 +1,7 @@
 import { app } from "/scripts/app.js"
 import './exif-reader.js'
-import "./fabric.min.js";
-import { OpenPosePanel, loadImageAsync } from "./openposeadv.js";
+import "./fabric.min.js"
+import { OpenPosePanel, loadImageAsync } from "./openposeadv.js"
 
 app.registerExtension({
 
