@@ -1,0 +1,15 @@
+[project]
+name = "ultools-comfyui"
+description = "Nodes:SaveImgAdv, CLIPTextEncodeWithStats. Collection of tools supporting txt2img generation in ComfyUI and other tasks."
+version = "1.0.0"
+license = "LICENSE"
+dependencies = ["pandas", "numpy", "piexif"]
+
+[project.urls]
+Repository = "https://github.com/jkrauss82/ultools-comfyui"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "ultools-comfyui"
+Icon = ""
