@@ -37,17 +37,53 @@ sampler_props_map = {
     'sampler_name': None,
     'scheduler': None }
 
-def isSamplerNode(params):
-    for param in sampler_props_map:
-        if param not in params:
-            return False
-    return True
+def isSamplerNode(node):
+    sampler_classes = [ "KSampler", "KSamplerAdvanced", "SamplerCustom", "DetailerForEach" ]
+    prop = "class_type" if "class_type" in node else "type"
+    return node[prop] in sampler_classes
+
+def getSamplerProps(node_id, prompt):
+    node = prompt[node_id]
+    all = True
+    props = {}
+    for prop in sampler_props_map.keys():
+        if prop in node["inputs"] and isinstance(node["inputs"][prop], (str, int, float)):
+            props[prop] = node["inputs"][prop]
+        else: all = False
+    if not all:
+        # calculate denoise and correct steps if KSamplerAdvanced
+        if node["class_type"] == "KSamplerAdvanced":
+            props["steps"] = node["inputs"]["end_at_step"] - node["inputs"]["start_at_step"]
+            props["denoise"] = props["steps"] / node["inputs"]["steps"]
+        # pull values from plugged input nodes for SamplerCustom
+        if node["class_type"] == "SamplerCustom":
+            props["seed"] = node["inputs"]["noise_seed"]
+            source = prompt[node["inputs"]["sigmas"][0]]
+            if "steps" in source["inputs"]: props["steps"] = source["inputs"]["steps"]
+            if "denoise" in source["inputs"]: props["denoise"] = source["inputs"]["denoise"]
+            if source["class_type"] == "BasicScheduler":
+                props["scheduler"] = source["inputs"]["scheduler"]
+            else:
+                props["scheduler"] = source["class_type"].replace("Scheduler", "").lower()
+            source = prompt[node["inputs"]["sampler"][0]]
+            if "sampler_name" in source["inputs"]: props["sampler_name"] = source["inputs"]["sampler_name"]
+    return props
 
 def convSamplerA1111(sampler, scheduler):
     sampler = sampler.replace('dpm', 'DPM').replace('pp', '++').replace('_ancestral', ' a').replace('DPM_2', 'DPM2').replace('_sde', ' SDE').replace('2m', '2M').replace('3m', '3M').replace('2s', '2S').replace('euler', 'Euler').replace('ddim', 'DDIM').replace('heun', 'Heun').replace('uni_pc', 'UniPC').replace('_', ' ')
     if scheduler == 'normal': return sampler
     scheduler = scheduler.title()
     return sampler+' '+scheduler
+
+def traverseToPropValue(input, prompt, prop):
+    if input[0] in prompt:
+        node = prompt[input[0]]
+        if 'inputs' in node:
+            if prop in node['inputs']:
+                if isinstance(node['inputs'][prop], (str, int, float)):
+                    return node['inputs'][prop]
+                else:
+                    return traverseToPropValue(node['inputs'][prop], prompt, prop)
 
 def traverseOrGetText(order, prompt):
     # print(f'check node {order[0]} input {order[1]}')
@@ -133,10 +169,11 @@ def automatic1111Format(prompt, image, add_hashes):
                     if add_hashes:
                         hash = sha256sum(folder_names_and_paths['loras'][0][0]+'/'+params['lora_name'])
                         hashes[f'lora:{params["lora_name"]}'] = hash[0:10]
-            if isSamplerNode(params) and gensampler == '':
-                sampler = convSamplerA1111(params['sampler_name'], params['scheduler'])
+            if isSamplerNode(prompt[order]) and gensampler == '':
+                sampler_props = getSamplerProps(order, prompt)
+                sampler = convSamplerA1111(sampler_props['sampler_name'], sampler_props['scheduler'])
                 width, height = image.size
-                gensampler = f'\nSteps: {params["steps"]}, Sampler: {sampler}, CFG scale: {params["cfg"]}, Seed: {params["seed"]}, Denoising strength: {params["denoise"]}, Size: {width}x{height}'
+                gensampler = f'\nSteps: {sampler_props["steps"]}, Sampler: {sampler}, CFG scale: {sampler_props["cfg"]}, Seed: {sampler_props["seed"]}, Denoising strength: {sampler_props["denoise"]}, Size: {width}x{height}'
             if prompt[order]['class_type'] == 'UltimateSDUpscale' and ultimate_sd_upscale == '':
                 if 'upscale_model' in params and params['upscale_model'] != None and params['upscale_model'][0] in prompt and prompt[params['upscale_model'][0]]['class_type'] == 'UpscaleModelLoader':
                     model = stripFileExtension(prompt[params['upscale_model'][0]]['inputs']['model_name'])
