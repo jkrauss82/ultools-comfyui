@@ -1,9 +1,9 @@
 [project]
 name = "ultools-comfyui"
-description = "Nodes:SaveImgAdv, CLIPTextEncodeWithStats, OpenPoseEditorAdv. Collection of tools supporting txt2img generation in ComfyUI and other tasks."
+description = "Nodes:SaveImgAdv, CLIPTextEncodeWithStats, OpenPoseEditorAdv, SolidMaskAdv. Collection of tools supporting txt2img generation in ComfyUI and other tasks."
 version = "1.0.0"
 license = "LICENSE"
-dependencies = ["pandas", "numpy", "piexif"]
+dependencies = ["pandas", "numpy", "piexif", "pillow"]
 
 [project.urls]
 Repository = "https://github.com/jkrauss82/ultools-comfyui"

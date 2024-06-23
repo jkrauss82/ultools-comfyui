@@ -91,6 +91,18 @@ Collection of tools supporting txt2img generation in [ComfyUI](https://github.co
 
 </details>
 
+<details>
+
+<summary>SolidMaskAdv</summary>
+
+  <br>
+
+  A simple addition to the regular solid mask node to support circular mask generation.
+
+  It has a switch for the type of the mask to be generated (rectangle or ellipsis).
+
+</details>
+
 ## 🖥️ Installation
 
 In your terminal/console, navigate to your ComfyUI custom nodes directory and clone this repo:

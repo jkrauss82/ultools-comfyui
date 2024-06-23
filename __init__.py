@@ -1,4 +1,4 @@
-from .nodes import CLIPTextEncodeWithStats, SaveImgAdv, OpenPoseEditorAdv
+from .nodes import CLIPTextEncodeWithStats, SaveImgAdv, OpenPoseEditorAdv, SolidMaskAdv
 import shutil
 import folder_paths
 import os
@@ -44,5 +44,6 @@ setup_js()
 NODE_CLASS_MAPPINGS = {
     "SaveImgAdv": SaveImgAdv.SaveImgAdv,
     "CLIPTextEncodeWithStats": CLIPTextEncodeWithStats.CLIPTextEncodeWithStats,
-    "OpenPoseEditorAdv": OpenPoseEditorAdv.OpenPoseEditorAdv
+    "OpenPoseEditorAdv": OpenPoseEditorAdv.OpenPoseEditorAdv,
+    "SolidMaskAdv": SolidMaskAdv.SolidMaskAdv
 }
