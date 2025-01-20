@@ -292,12 +292,14 @@ export class OpenPosePanel {
 		const circles = []
 
 		for (let i = 0; i < connect_keypoints.length; i++){
-			// 接続されるidxを指定　[0, 1]なら0と1つなぐ
+			// Specify the idx to be connected. If it is [0, 1], connect 0 and 1.
 			const item = connect_keypoints[i]
-			const line = makeLine(keypoints[item[0]].concat(keypoints[item[1]]), `rgba(${connect_color[i].join(", ")}, 0.7)`)
-			lines.push(line)
-			this.canvas.add(line)
-			line['id'] = item[0];
+            if (keypoints[item[0]] && keypoints[item[1]]) {
+                const line = makeLine(keypoints[item[0]].concat(keypoints[item[1]]), `rgba(${connect_color[i].join(", ")}, 0.7)`)
+                lines.push(line)
+                this.canvas.add(line)
+                line['id'] = item[0]
+            }
 		}
 
         for (let i = 0; i < keypoints.length; i++){
@@ -654,7 +656,37 @@ export class OpenPosePanel {
     }
 
     loadJSON(text) {
-        const json = JSON.parse(text);
+        let json = JSON.parse(text)
+        // convert controlnet aux format to ours
+        if (Array.isArray(json) && json.length > 0 && json[0].people && Array.isArray(json[0].people) && json[0].people.length > 0 && json[0].people[0].pose_keypoints_2d && Array.isArray(json[0].people[0].pose_keypoints_2d) && json[0].people[0].pose_keypoints_2d.length > 0 && json[0].canvas_height && json[0].canvas_width) {
+            console.log('converting controlnet aux format')
+            const temp = { height: json[0].canvas_height, width: json[0].canvas_width, keypoints: [] }
+            for (const dude of json[0].people) {
+                if (!dude.pose_keypoints_2d) continue
+                const pose = dude.pose_keypoints_2d
+                const converted = []
+                // for (let i = 0; i < pose.length; i = i + 3) {
+                let idx = 0
+                for (let i = 0; i < DEFAULT_KEYPOINTS.length; i++) {
+                    try {
+                        if (pose[idx]) {
+                            const convx = pose[idx] * temp.width
+                            const convy = pose[idx+1] * temp.height
+                            converted.push([ convx, convy ])
+                        } else {
+                            converted.push([ 0, 0 ])
+                            console.warn(`no keypoint observed for idx ${idx}`)
+                        }
+                    } catch (err) {
+                        console.warn('error while trying to convert from controlnet aux input', err)
+                    }
+                    idx = idx + 3
+                }
+                temp.keypoints.push(converted)
+            }
+            json = temp
+        }
+        // console.log(json)
         if (json["width"] && json["height"]) {
             this.resizeCanvas(json["width"], json["height"])
         } else {
