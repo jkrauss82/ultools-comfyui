@@ -1,4 +1,4 @@
-import { app } from "/scripts/app.js"
+import { app } from "../../scripts/app.js"
 import './exif-reader.js'
 import "./fabric.min.js"
 import { OpenPosePanel, loadImageAsync } from "./openposeadv.js"
@@ -7,7 +7,7 @@ app.registerExtension({
 
 	name: "ultools",
 
-	setup(app) {
+	async setup(app) {
 		async function getImgExifData(webpFile) {
 			const reader = new FileReader()
 			reader.readAsArrayBuffer(webpFile)
@@ -152,7 +152,6 @@ app.registerExtension({
 			}
 			const img = await loadImageAsync(`/view?filename=${name}&type=input&subfolder=${subfolder}&t=${Date.now()}`);
 			this.imgs = [img];
-			this.setSizeForImage();
 			app.graph.setDirtyCanvas(true);
 		}
 

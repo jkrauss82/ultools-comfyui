@@ -1,7 +1,8 @@
 from .nodes import CLIPTextEncodeWithStats, SaveImgAdv, OpenPoseEditorAdv, SolidMaskAdv
-import shutil
 import folder_paths
 import os
+
+WEB_DIRECTORY = "./js"
 
 class colors:
     HEADER = '\033[95m'
@@ -16,30 +17,17 @@ class colors:
 
 comfy_path = os.path.dirname(folder_paths.__file__)
 
-def setup_js():
-    ultools_path = os.path.dirname(__file__)
+def checkForLegacyFolders():
     js_dest_path = os.path.join(comfy_path, "web", "extensions", "ultools")
     legacy_js_dest_path = os.path.join(comfy_path, "web", "extensions", "imginfo")
-    js_files = ["ultools.js", "exif-reader.js", "openposeadv.js", "fabric.min.js"]
 
     # check presence of legacy folder, print hint it can be removed
     if os.path.isdir(legacy_js_dest_path):
         print(f"{colors.BLUE}ULTools: {colors.WARNING}Found legacy SaveImgAdv path at {legacy_js_dest_path}, this folder and its content can be removed.{colors.ENDC}")
+    if os.path.isdir(js_dest_path):
+        print(f"{colors.BLUE}ULTools: {colors.WARNING}Found legacy SaveImgAdv path at {js_dest_path}, this folder and its content can be removed.{colors.ENDC}")
 
-    ## Creating folder if it's not present, then Copy.
-    if not os.path.isdir(js_dest_path):
-        os.mkdir(js_dest_path)
-    logged = False
-    for js in js_files:
-        if not os.path.isfile(f"{js_dest_path}/{js}"):
-            if logged == False:
-                print(f"{colors.BLUE}ULTools:{colors.ENDC} Copying JS files")
-                logged = True
-        shutil.copy(os.path.join(ultools_path, "js", js), js_dest_path)
-
-    print(f"{colors.BLUE}ULTools: {colors.GREEN}Loaded{colors.ENDC}")
-
-setup_js()
+checkForLegacyFolders()
 
 NODE_CLASS_MAPPINGS = {
     "SaveImgAdv": SaveImgAdv.SaveImgAdv,
@@ -47,3 +35,5 @@ NODE_CLASS_MAPPINGS = {
     "OpenPoseEditorAdv": OpenPoseEditorAdv.OpenPoseEditorAdv,
     "SolidMaskAdv": SolidMaskAdv.SolidMaskAdv
 }
+
+__all__ = ["NODE_CLASS_MAPPINGS", "WEB_DIRECTORY"]
