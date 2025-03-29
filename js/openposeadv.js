@@ -70,31 +70,35 @@ async function canvasToBlob(canvas) {
 }
 
 export class OpenPosePanel {
-    node = null;
-	canvas = null;
+    node = null
+	canvas = null
 	canvasElem = null
 	panel = null
 
 	undo_history = []
 	redo_history = []
 
-	visibleEyes = true;
-	flipped = false;
-	lockMode = false;
+	visibleEyes = true
+	flipped = false
+	lockMode = false
 
 	constructor(panel, node) {
-		this.panel = panel;
-        this.node = node;
+		this.panel = panel
+        this.node = node
 
         const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0)
         const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0)
 
-        const width = vw ? vw - 40 : 1024
-        const height = vh ? vh - 40 : 768
+        // set wh according to current ui state
+        const mh = document.getElementById("comfyui-body-top").offsetHeight || 0
+        const mw = document.getElementById("comfyui-body-left").offsetWidth || 0
+
+        const width = vw ? vw - mw : 1024
+        const height = vh ? vh - mh : 768
         this.panel.style.width = `${width}px`
         this.panel.style.height = `${height}px`
-        this.panel.style.left = `20px`
-        this.panel.style.top = '20px'
+        this.panel.style.left = `${mw}px`
+        this.panel.style.top = `${mh}px`
         this.panel.style.marginTop = '0'
         this.panel.style.marginLeft = '0'
         this.panel.style.zIndex = 1000
@@ -203,11 +207,13 @@ export class OpenPosePanel {
 		this.panel.footer.appendChild(heightLabel);
 		this.panel.footer.appendChild(this.heightInput);
 
-                this.panel.footer.style.textAlign = 'center'
-                const buttons = this.panel.footer.querySelectorAll('button')
-                for (let i = 0; i < buttons.length; i++) {
-                    buttons[i].style.marginLeft = '5px'
-                }
+        this.panel.addButton("Close", () => this.panel.close())
+
+        this.panel.footer.style.textAlign = 'center'
+        const buttons = this.panel.footer.querySelectorAll('button')
+        for (let i = 0; i < buttons.length; i++) {
+            buttons[i].style.marginLeft = '5px'
+        }
 
         if (this.node.properties.savedPose) {
             const error = this.loadJSON(this.node.properties.savedPose);
@@ -232,16 +238,27 @@ export class OpenPosePanel {
 	}
 
 	onKeyDown(e) {
+        let triggered = false
 		if (e.key === "z" && e.ctrlKey) {
 			this.undo()
-			e.preventDefault();
-			e.stopImmediatePropagation();
+            triggered = true
 		}
 		else if (e.key === "y" && e.ctrlKey) {
 			this.redo()
-			e.preventDefault();
-			e.stopImmediatePropagation();
+            triggered = true
 		}
+		else if (e.keyCode == 8 || e.keyCode == 46) {
+			this.removePose()
+            triggered = true
+		}
+		else if (e.keyCode == 27) {
+			this.panel.close()
+            triggered = true
+		}
+        if (triggered) {
+            e.preventDefault()
+            e.stopImmediatePropagation()
+        }
 	}
 
 	addPose(keypoints = undefined) {
@@ -378,14 +395,15 @@ export class OpenPosePanel {
 
     undo() {
         if (this.undo_history.length > 0) {
-            this.lockMode = true;
-            if (this.undo_history.length > 1)
-                this.redo_history.push(this.undo_history.pop());
-            const content = this.undo_history[this.undo_history.length - 1];
+            this.lockMode = true
+            if (this.undo_history.length > 1) {
+                this.redo_history.push(this.undo_history.pop())
+            }
+            const content = this.undo_history[this.undo_history.length - 1]
             this.canvas.loadFromJSON(content, () => {
-                this.canvas.renderAll();
-                this.lockMode = false;
-            });
+                this.canvas.renderAll()
+                this.lockMode = false
+            })
         }
     }
 
@@ -596,7 +614,9 @@ export class OpenPosePanel {
     removePose() {
         const selection = this.canvas.getActiveObject();
         if (!selection || !("lines" in selection))
-            return;
+            return
+
+        this.undo_history.push(JSON.stringify(this.canvas))
 
         for (const line of selection.lines){
             this.canvas.remove(line)
@@ -669,9 +689,10 @@ export class OpenPosePanel {
                 let idx = 0
                 for (let i = 0; i < DEFAULT_KEYPOINTS.length; i++) {
                     try {
+                        const isRelativeValues = pose[idx] <= 1 && post[idx] >= 0 && pose[idx+1] <= 1 && post[idx+1] >= 0
                         if (pose[idx]) {
-                            const convx = pose[idx] * temp.width
-                            const convy = pose[idx+1] * temp.height
+                            const convx = isRelativeValues ? pose[idx] * temp.width : pose[idx]
+                            const convy = isRelativeValues ? pose[idx+1] * temp.height : pose[idx+1]
                             converted.push([ convx, convy ])
                         } else {
                             converted.push([ 0, 0 ])
