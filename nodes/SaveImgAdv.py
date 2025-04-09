@@ -52,7 +52,7 @@ class SaveImgAdv:
                        keywords=None, prompt=None, extra_pnginfo=None, ):
 
         # we have set INPUT_IS_LIST = True, need to map regular parameters from their lists
-        images = images[0]
+        is_list = len(images) > 1
         mode = mode[0]
         format = format[0]
         compression = compression[0]
@@ -102,8 +102,10 @@ class SaveImgAdv:
             os.makedirs(full_output_folder, exist_ok=True)
             counter = 1
 
-        for idx in range(len(images)):
-            i = 255. * images[idx].cpu().numpy()
+        num_images = len(images) if is_list else len(images[0])
+        for idx in range(num_images):
+            image = images[idx][0] if is_list else images[0][idx]
+            i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
 
             file = f"{filename}_{counter:05}_.{format}"
