@@ -65,11 +65,20 @@ def getSamplerProps(node_id, prompt):
                 props["scheduler"] = source["inputs"]["scheduler"]
             else:
                 props["scheduler"] = source["class_type"].replace("Scheduler", "").lower()
-            source = prompt[node["inputs"]["sampler"][0]]
-            if "sampler_name" in source["inputs"]: props["sampler_name"] = source["inputs"]["sampler_name"]
+            props["sampler_name"] = None
+            tries = 0
+            try:
+                while props["sampler_name"] is None and tries < 3:
+                    source = prompt[node["inputs"]["sampler"][0]]
+                    if "sampler_name" in source["inputs"]: props["sampler_name"] = source["inputs"]["sampler_name"]
+                    else: source = prompt[source["inputs"]["sampler"][0]]
+                    tries +=1
+            except:
+                pass
     return props
 
 def convSamplerA1111(sampler, scheduler):
+    if sampler is None: sampler = "N/A"
     sampler = sampler.replace('dpm', 'DPM').replace('pp', '++').replace('_ancestral', ' a').replace('DPM_2', 'DPM2').replace('_sde', ' SDE').replace('2m', '2M').replace('3m', '3M').replace('2s', '2S').replace('euler', 'Euler').replace('ddim', 'DDIM').replace('heun', 'Heun').replace('uni_pc', 'UniPC').replace('_', ' ')
     if scheduler == 'normal': return sampler
     scheduler = scheduler.title()
@@ -195,7 +204,11 @@ def automatic1111Format(prompt, image, add_hashes):
                     if genmodel == '': genmodel = f', Model: {model}'
                     # calculate the sha256sum for this model. TODO: store hashes in .txt file next to models
                     if add_hashes:
-                        hash = sha256sum(folder_names_and_paths['checkpoints' if prop == 'ckpt_name' else 'unet'][0][0]+'/'+params[prop])
+                        checkpoint_dirs = ['checkpoints', 'unet', 'diffusion_models']
+                        for loc in checkpoint_dirs:
+                            if loc in folder_names_and_paths and Path(folder_names_and_paths[loc][0][0]+'/'+params[prop]).is_file():
+                                hash = sha256sum(folder_names_and_paths[loc][0][0]+'/'+params[prop])
+                                break
                         hashes[f'model:{model}'] = hash[0:10]
             if prompt[order]['class_type'] == 'UpscaleModelLoader' and hires == '':
                 model = stripFileExtension(params['model_name'])
