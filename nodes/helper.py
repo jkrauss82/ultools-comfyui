@@ -97,7 +97,7 @@ def traverseToPropValue(input, prompt, prop):
 def traverseOrGetText(order, prompt):
     # print(f'check node {order[0]} input {order[1]}')
     text = []
-    text_props = ["text", "clip_l", "clip_g", "t5xxl"]
+    text_props = ["text", "clip_l", "clip_g", "t5xxl", "value"]
     if order[0] in prompt:
         node = prompt[order[0]]
         # print(f': {type(list(node.values())[int(order[1])])}')
@@ -204,12 +204,14 @@ def automatic1111Format(prompt, image, add_hashes):
                     if genmodel == '': genmodel = f', Model: {model}'
                     # calculate the sha256sum for this model. TODO: store hashes in .txt file next to models
                     if add_hashes:
-                        checkpoint_dirs = ['checkpoints', 'unet', 'diffusion_models']
-                        for loc in checkpoint_dirs:
-                            if loc in folder_names_and_paths and Path(folder_names_and_paths[loc][0][0]+'/'+params[prop]).is_file():
-                                hash = sha256sum(folder_names_and_paths[loc][0][0]+'/'+params[prop])
-                                break
-                        hashes[f'model:{model}'] = hash[0:10]
+                        model_dir = 'checkpoints' if prompt[order]['class_type'] == 'CheckpointLoaderSimple' else 'diffusion_models'
+                        if model_dir in folder_names_and_paths:
+                            for loc in folder_names_and_paths[model_dir][0]:
+                                if model_dir in loc and Path(f'{loc}/{params[prop]}').is_file():
+                                    hash = sha256sum(f'{loc}/{params[prop]}')
+                                    hashes[f'model:{model}'] = hash[0:10]
+                        else:
+                            print(f'[ULTools SaveImgAdv] Warning: "{model_dir}" no in folder_names_and_paths! Cannot calculate model hash.')
             if prompt[order]['class_type'] == 'UpscaleModelLoader' and hires == '':
                 model = stripFileExtension(params['model_name'])
                 hires = f', Hires upscaler: {model}'

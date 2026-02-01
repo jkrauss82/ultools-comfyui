@@ -47,6 +47,14 @@ class SaveImgAdv:
 
     CATEGORY = "image"
 
+    DESCRIPTION = """- filename_prefix: set the prefix of the saved image. Slashes can be used and sub-folders will automatically be created.
+- mode: some formats (webp, png) support lossless images saving (requires more disk space). If choosing jpeg, mode is always lossy and this setting will be ignored. If png, mode is always lossless.
+- compression: lower values -> stronger compression. Think percentage kept of original image
+- calc_model_hashes: calculate and store model hashes for a1111 compatible meta data info (will ensure models are correctly linked in civitai for instance)
+- add_automatic1111_meta: add meta information to the exifdata (Ifd.Make, Ifd.ImageDescription) of the stored image which will be read by civitai and other tools/websites
+- keywords: add keywords to the exifdata of the stored image, exif tag `xpkeywords`
+"""
+
 
     def Save_as_format(self, mode, format, compression, images, calc_model_hashes, add_automatic1111_meta, filename_prefix="ComfyUI",
                        keywords=None, prompt=None, extra_pnginfo=None, ):
