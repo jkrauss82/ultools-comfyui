@@ -60,7 +60,10 @@ def getSamplerProps(node_id, prompt):
             props["seed"] = node["inputs"]["noise_seed"]
             source = prompt[node["inputs"]["sigmas"][0]]
             if "steps" in source["inputs"]: props["steps"] = source["inputs"]["steps"]
-            if "denoise" in source["inputs"]: props["denoise"] = source["inputs"]["denoise"]
+            if "denoise" in source["inputs"]:
+                props["denoise"] = source["inputs"]["denoise"]
+            else:
+                props["denoise"] = 1.0 if node["inputs"].get("add_noise", True) else 0.0
             if source["class_type"] == "BasicScheduler":
                 props["scheduler"] = source["inputs"]["scheduler"]
             else:
@@ -94,56 +97,174 @@ def traverseToPropValue(input, prompt, prop):
                 else:
                     return traverseToPropValue(node['inputs'][prop], prompt, prop)
 
+def resolveStringInput(value, prompt):
+    """Resolve a single string-producing input of a text node to a string.
+
+    A value is either a plain string (return as-is) or a node reference
+    [node_id, slot] (recurse into that node to pull its text). Used by the
+    per-node handlers below, where an input may be a literal or the output of
+    another node (e.g. a PrimitiveStringMultiline).
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list) and value[0] in prompt:
+        return traverseOrGetText(value, prompt)
+    return ''
+
+# --------------------------------------------------------------------------- #
+# Text-node handlers
+#
+# Each handler takes (node, prompt) and returns the string that node produces.
+# `node` is the full node dict (with 'inputs'); `prompt` is the whole workflow
+# so handlers can recurse into upstream nodes via resolveStringInput /
+# traverseOrGetText. Add a new ComfyUI string node by writing a handler and
+# registering its class_type in _TEXT_NODE_HANDLERS -- no other changes needed.
+# --------------------------------------------------------------------------- #
+
+def _handle_default(node, prompt):
+    """Generic handler: a node that IS the text source.
+
+    Looks for a text-ish input prop (text / clip_l / clip_g / t5xxl / value)
+    that is either a literal string or a reference to an upstream node. This
+    covers CLIPTextEncode, PrimitiveString(Multiline), and any other node that
+    simply passes a string through. If no such prop exists, falls back to
+    traversing any inputs whose name starts with 'conditioning' (Conditioning
+    nodes), collecting and de-duplicating their text.
+    """
+    inputs = node['inputs']
+    for text_prop in ("text", "clip_l", "clip_g", "t5xxl", "value"):
+        if text_prop in inputs:
+            return resolveStringInput(inputs[text_prop], prompt)
+    # conditioning-style node: gather text from each conditioning input
+    parts = []
+    for prop, val in inputs.items():
+        if prop.startswith('conditioning') and isinstance(val, list):
+            parts.append(traverseOrGetText(val, prompt))
+    retVal = []
+    for txts in parts:
+        for txt in txts.split(','):
+            if txt.strip(' ') and txt.strip(' ') not in retVal:
+                retVal.append(txt.strip(' '))
+    return ', '.join(retVal)
+
+def _handle_string_concatenate(node, prompt):
+    """StringConcatenate ("Concatenate Text"): string_a + delimiter + string_b.
+
+    Each string_* input is either a literal or a node reference. Keys are
+    sorted so the order is deterministic (string_a, string_b, ...).
+    """
+    inputs = node['inputs']
+    delimiter = inputs.get('delimiter', '')
+    parts = [resolveStringInput(inputs[k], prompt)
+             for k in sorted(k for k in inputs if k.startswith('string_'))]
+    return delimiter.join(parts)
+
+def _handle_string_replace(node, prompt):
+    """StringReplace ("Replace Text"): string.replace(find, replace)."""
+    inputs = node['inputs']
+    s = resolveStringInput(inputs.get('string', ''), prompt)
+    find = resolveStringInput(inputs.get('find', ''), prompt)
+    replace = resolveStringInput(inputs.get('replace', ''), prompt)
+    return s.replace(find, replace)
+
+def _handle_switch(node, prompt):
+    """ComfySwitchNode / ComfySoftSwitchNode ("If/Else Switch" / "Soft Switch").
+
+    Picks on_true or on_false based on the boolean `switch` input, then
+    resolves the chosen branch (a node reference or literal).
+    """
+    inputs = node['inputs']
+    sw = inputs.get('switch', False)
+    branch = inputs.get('on_true' if sw else 'on_false', '')
+    return resolveStringInput(branch, prompt)
+
+def _handle_string_format(node, prompt):
+    """StringFormat ("Format Text"): f_string.format(**values).
+
+    `values` is an autogrow dict of name -> (string | node ref); `f_string`
+    is the Python format template. Only keys that resolve to a string are
+    supplied; a template referencing an unresolvable key returns the raw
+    template rather than failing prompt extraction.
+    """
+    inputs = node['inputs']
+    f_string = inputs.get('f_string', '')
+    values = inputs.get('values', {})
+    kwargs = {}
+    if isinstance(values, dict):
+        for k, v in values.items():
+            kwargs[k] = resolveStringInput(v, prompt)
+    try:
+        return f_string.format(**kwargs)
+    except (KeyError, IndexError, ValueError):
+        return f_string
+
+def _handle_case_converter(node, prompt):
+    """CaseConverter ("Convert Text Case"): applies the selected case mode."""
+    inputs = node['inputs']
+    s = resolveStringInput(inputs.get('string', ''), prompt)
+    mode = inputs.get('mode', '')
+    if mode == 'UPPERCASE': return s.upper()
+    if mode == 'lowercase': return s.lower()
+    if mode == 'Capitalize': return s.capitalize()
+    if mode == 'Title Case': return s.title()
+    return s
+
+def _handle_string_trim(node, prompt):
+    """StringTrim ("Trim Text"): strips whitespace per the selected mode."""
+    inputs = node['inputs']
+    s = resolveStringInput(inputs.get('string', ''), prompt)
+    mode = inputs.get('mode', 'Both')
+    if mode == 'Left': return s.lstrip()
+    if mode == 'Right': return s.rstrip()
+    return s.strip()
+
+def _handle_string_substring(node, prompt):
+    """StringSubstring ("Substring"): string[start:end]."""
+    inputs = node['inputs']
+    s = resolveStringInput(inputs.get('string', ''), prompt)
+    start = inputs.get('start', 0)
+    end = inputs.get('end', len(s))
+    try:
+        return s[int(start):int(end)]
+    except (TypeError, ValueError):
+        return s
+
+def _handle_json_extract_string(node, prompt):
+    """JsonExtractString ("Extract Text from JSON"): json.loads(json_string)[key]."""
+    inputs = node['inputs']
+    json_string = resolveStringInput(inputs.get('json_string', ''), prompt)
+    key = inputs.get('key', '')
+    try:
+        data = json.loads(json_string)
+        if isinstance(data, dict) and key in data:
+            value = data[key]
+            return '' if value is None else str(value)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return ''
+
+# class_type -> handler. The default handler (generic text/value/clip lookup)
+# is used for any class_type not listed here.
+_TEXT_NODE_HANDLERS = {
+    'StringConcatenate': _handle_string_concatenate,
+    'StringReplace': _handle_string_replace,
+    'ComfySwitchNode': _handle_switch,
+    'ComfySoftSwitchNode': _handle_switch,
+    'StringFormat': _handle_string_format,
+    'CaseConverter': _handle_case_converter,
+    'StringTrim': _handle_string_trim,
+    'StringSubstring': _handle_string_substring,
+    'JsonExtractString': _handle_json_extract_string,
+}
+
 def traverseOrGetText(order, prompt):
     # print(f'check node {order[0]} input {order[1]}')
-    text = []
-    text_props = ["text", "clip_l", "clip_g", "t5xxl", "value"]
     if order[0] in prompt:
         node = prompt[order[0]]
-        # print(f': {type(list(node.values())[int(order[1])])}')
         if 'inputs' in node:
-            # node which has some sort of text input - either as a text field or coming from yet another node
-            for text_prop in text_props:
-                if text_prop in node['inputs']:
-                    if isinstance(node['inputs'][text_prop], str):
-                        return node['inputs'][text_prop]
-                    else:
-                        # check if is find/replace node
-                        if 'find' in node['inputs'] and 'replace' in node['inputs']:
-                            find_node = prompt[node['inputs']['find'][0]]
-                            # print(f'find node {json.dumps(find_node)}')
-                            find = ''
-                            if 'inputs' in find_node:
-                                find = list(find_node['inputs'].values())[node['inputs']['find'][1]]
-                                # print(f'find {json.dumps(find)}')
-                                if not isinstance(find, str):
-                                    # print('traversing find dict')
-                                    find = traverseOrGetText(node['inputs']['find'], prompt)
-                            replace_node = prompt[node['inputs']['replace'][0]]
-                            # print(f'repl node {json.dumps(replace_node)}')
-                            replace = ''
-                            if 'inputs' in replace_node:
-                                replace = list(replace_node['inputs'].values())[node['inputs']['replace'][1]]
-                                # print(f'replace {json.dumps(replace)}')
-                                if not isinstance(replace, str):
-                                    # print('traversing replace dict')
-                                    replace = traverseOrGetText(node['inputs']['replace'], prompt)
-                            # print('traversing text replace dict')
-                            return traverseOrGetText(node['inputs'][text_prop], prompt).replace(find, replace)
-                        else:
-                            # print('traversing text dict')
-                            return traverseOrGetText(node['inputs'][text_prop], prompt)
-                # we most likely have a node which handles some properties of condition, let's see how many there are and traverse back each of them
-            for prop in node['inputs']:
-                if prop.find('conditioning') == 0:
-                    text.append(traverseOrGetText(node['inputs'][prop], prompt))
-
-    retVal = []
-    for txts in text:
-        parts = txts.split(',')
-        for txt in parts:
-            if not txt.strip(' ') in retVal: retVal.append(txt.strip(' '))
-    return ', '.join(retVal)
+            handler = _TEXT_NODE_HANDLERS.get(node.get('class_type'), _handle_default)
+            return handler(node, prompt)
+    return ''
 
 def automatic1111Format(prompt, image, add_hashes):
     positive_input = ''
@@ -195,7 +316,7 @@ def automatic1111Format(prompt, image, add_hashes):
                 if 'tile_width' in params: ultimate_sd_upscale += f', Ultimate SD upscale tile_width: {params["tile_width"]}'
                 if 'tile_height' in params: ultimate_sd_upscale += f', Ultimate SD upscale tile_height: {params["tile_height"]}'
                 if 'mask_blur' in params: ultimate_sd_upscale += f', Ultimate SD upscale mask_blur: {params["mask_blur"]}'
-                if 'tile_padding' in params: ultimate_sd_upscale += f', Ultimate SD upscale padding: {params["tile_padding"]}'
+                if 'tile_padding' in params: ultimate_sd_upscale += f', Ultimate SD upscale tile_padding: {params["tile_padding"]}'
             if prompt[order]['class_type'] in ['CheckpointLoaderSimple', 'UNETLoader']:
                 prop = 'ckpt_name' if prompt[order]['class_type'] == 'CheckpointLoaderSimple' else 'unet_name'
                 if prop in params:
