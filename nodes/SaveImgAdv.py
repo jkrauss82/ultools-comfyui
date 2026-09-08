@@ -8,6 +8,9 @@ import folder_paths
 import os
 import json
 
+# Hard limit Pillow enforces for JPEG EXIF data (PIL.JpegImagePlugin MAX_BYTES_IN_MARKER).
+MAX_EXIF_BYTES = 65533
+
 
 '''
 by Kaharos94 and jkrauss82
@@ -124,12 +127,11 @@ class SaveImgAdv:
                 promptstr = str()
 
                 if prompt is not None:
-                    promptstr="".join(json.dumps(prompt)) #prepare prompt String
+                    promptstr="".join(json.dumps(prompt, separators=(",", ":"))) #prepare prompt String
                 if extra_pnginfo is not None:
                     for x in extra_pnginfo:
-                        workflowmetadata += "".join(json.dumps(extra_pnginfo[x]))
+                        workflowmetadata += "".join(json.dumps(extra_pnginfo[x], separators=(",", ":")))
 
-                # jpg has a maximum length of 64k in exif, need to check if meta data fits
                 a1111 = ""
                 if add_automatic1111_meta:
                     a1111 = helper.automatic1111Format(prompt, img, calc_model_hashes) or ""
@@ -142,24 +144,6 @@ class SaveImgAdv:
                     for word in klist:
                         if len(word) < 65: final_list.append(word.strip())
                     xpkeywords = ", ".join(final_list)
-
-                if format == 'jpg':
-                    lenexif = len(promptstr) + len(workflowmetadata) + len(xpkeywords) + len(a1111)
-                    while lenexif >= 64000:
-                        # throw away promptstr or workflowmetadata in case we exceed 64k
-                        if promptstr != "":
-                            promptstr = ""
-                            print(f'WARNING (SaveImgAdv): cannot save prompt to image because maximum jpg exif size of 64k characters exceeded.')
-                        elif workflowmetadata != "":
-                            workflowmetadata = ""
-                            print(f'WARNING (SaveImgAdv): cannot save workflow to image because maximum jpg exif size of 64k characters exceeded.')
-                        elif xpkeywords != "":
-                            xpkeywords = ""
-                            print(f'WARNING (SaveImgAdv): cannot save xpkeywords to image because maximum jpg exif size of 64k characters exceeded.')
-                        elif a1111 != "":
-                            a1111 = ""
-                            print(f'WARNING (SaveImgAdv): cannot save a1111 to image because maximum jpg exif size of 64k characters exceeded.')
-                        lenexif = len(promptstr) + len(workflowmetadata) + len(xpkeywords) + len(a1111)
 
                 # store data to exifdict
                 exifdict = {
@@ -177,7 +161,42 @@ class SaveImgAdv:
 
                 exif_bytes = piexif.dump(exifdict)
 
-                img.save(os.path.join(full_output_folder, file), method=6, exif=exif_bytes, lossless=(mode =="lossless"), quality=compression)
+                # Pillow enforces a hard limit on JPEG EXIF data (MAX_EXIF_BYTES); strip fields if we exceed it.
+                # Only applies to jpg — webp has no such limit.
+                if format == 'jpg' and len(exif_bytes) > MAX_EXIF_BYTES:
+                    # Try stripping in order of least importance:
+                    # a1111 -> xpkeywords -> UI workflow (ImageDescription) -> API prompt (Make).
+                    # The API prompt is what downstream tooling (watch scripts, config conversion)
+                    # needs, so it is the last field to sacrifice.
+                    if a1111 != "":
+                        a1111 = ""
+                        del exifdict['Exif']
+                        exif_bytes = piexif.dump(exifdict)
+                        print(f'WARNING (SaveImgAdv): stripped a1111 metadata — serialized EXIF exceeded {MAX_EXIF_BYTES}B.')
+                    if len(exif_bytes) > MAX_EXIF_BYTES and xpkeywords != "":
+                        xpkeywords = ""
+                        del exifdict["0th"][piexif.ImageIFD.XPKeywords]
+                        exif_bytes = piexif.dump(exifdict)
+                        print(f'WARNING (SaveImgAdv): stripped xpkeywords — serialized EXIF exceeded {MAX_EXIF_BYTES}B.')
+                    if len(exif_bytes) > MAX_EXIF_BYTES and workflowmetadata != "":
+                        workflowmetadata = ""
+                        exifdict["0th"][piexif.ImageIFD.ImageDescription] = ""
+                        exif_bytes = piexif.dump(exifdict)
+                        print(f'WARNING (SaveImgAdv): stripped workflow — serialized EXIF exceeded {MAX_EXIF_BYTES}B.')
+                    if len(exif_bytes) > MAX_EXIF_BYTES and promptstr != "":
+                        promptstr = ""
+                        exifdict["0th"][piexif.ImageIFD.Make] = ""
+                        exif_bytes = piexif.dump(exifdict)
+                        print(f'WARNING (SaveImgAdv): stripped prompt — serialized EXIF exceeded {MAX_EXIF_BYTES}B.')
+
+                try:
+                    img.save(os.path.join(full_output_folder, file), method=6, exif=exif_bytes, lossless=(mode =="lossless"), quality=compression)
+                except ValueError as e:
+                    if "EXIF data is too long" in str(e):
+                        print(f'WARNING (SaveImgAdv): EXIF data still too long after stripping — saving without EXIF.')
+                        img.save(os.path.join(full_output_folder, file), method=6, lossless=(mode =="lossless"), quality=compression)
+                    else:
+                        raise
 
             # format png (method from ComfyUI SaveImage class)
             else:
