@@ -1,4 +1,4 @@
-from .nodes import CLIPTextEncodeWithStats, SaveImgAdv, OpenPoseEditorAdv, SolidMaskAdv
+from .nodes import CLIPTextEncodeWithStats, SaveImgAdv, OpenPoseEditorAdv, SolidMaskAdv, KorniaFilters, TextFindAndReplaceAdv
 import folder_paths
 import os
 
@@ -33,7 +33,11 @@ NODE_CLASS_MAPPINGS = {
     "SaveImgAdv": SaveImgAdv.SaveImgAdv,
     "CLIPTextEncodeWithStats": CLIPTextEncodeWithStats.CLIPTextEncodeWithStats,
     "OpenPoseEditorAdv": OpenPoseEditorAdv.OpenPoseEditorAdv,
-    "SolidMaskAdv": SolidMaskAdv.SolidMaskAdv
+    "SolidMaskAdv": SolidMaskAdv.SolidMaskAdv,
+    "Clahe": KorniaFilters.Clahe,
+    "Histogram": KorniaFilters.Histogram,
+    "UnsharpMask": KorniaFilters.UnsharpMask,
+    "TextFindAndReplaceAdv": TextFindAndReplaceAdv.TextFindAndReplaceAdv,
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "WEB_DIRECTORY"]

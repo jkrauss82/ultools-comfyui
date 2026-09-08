@@ -103,6 +103,47 @@ Collection of tools supporting txt2img generation in [ComfyUI](https://github.co
 
 </details>
 
+<details>
+
+<summary>KorniaFilters (Clahe / UnsharpMask / Histogram)</summary>
+
+  <br>
+
+  Three image post-processing nodes built on [kornia](https://kornia.readthedocs.io/), grouped in the `image` category.
+
+  **Clahe** — applies Contrast Limited Adaptive Histogram Equalization to the lightness channel (LAB space) to enhance local contrast without blowing out highlights.
+    - **clip_limit**: higher values increase contrast but risk amplifying noise (default 1.0)
+    - **grid_size_wh**: tile grid size for the adaptive equalization, must be a power-of-2-friendly value (default 8)
+
+  **UnsharpMask** — sharpens the image via unsharp masking.
+    - **kernel_size**: Gaussian kernel size, odd values (default 9)
+    - **sigma**: Gaussian blur radius controlling the amount of sharpening (default 2.5)
+
+  **Histogram** — renders the luminance or per-channel histogram of each image in a batch as a 1600×400 image (dark theme), useful for previewing exposure/distribution before and after grading.
+    - **mode**: `lightness` (single luminance curve) or `rgb` (three overlaid channel curves)
+
+  All three pass through unmodified when their effect would be a no-op (e.g. `grid_size_wh=1` for Clahe, `kernel_size=1` & `sigma=0` for UnsharpMask).
+
+</details>
+
+<details>
+
+<summary>TextFindAndReplaceAdv</summary>
+
+  <br>
+
+  *Forked from WASasquatch / https://github.com/WASasquatch/was-node-suite-comfyui (WAS_Search_and_Replace) and adapted*
+
+  A find/replace node for prompt strings with a few extra controls over the basic ComfyUI string replace.
+
+  - **text**: the input string (force-input, plug in from any string node)
+  - **find** / **replace**: each may contain multiple lines — one find/replace pair per line, applied in order. If the two lists differ in length the last entry of the shorter list is reused for the remaining lines.
+  - **max_count**: maximum number of replacements per find pair, `0` means replace all (default 0)
+
+  Matching is literal (the find string is regex-escaped), so special characters need no escaping. In addition to the resulting **result_text**, the node also outputs the total number of replacements performed as **NUMBER**, **FLOAT**, and **INT** for use in downstream logic.
+
+</details>
+
 ## 🖥️ Installation
 
 In your terminal/console, navigate to your ComfyUI custom nodes directory and clone this repo:
